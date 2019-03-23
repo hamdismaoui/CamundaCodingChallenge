@@ -51,7 +51,7 @@ public class App {
 				}
 				reader.close();
 			}
-			
+
 			JSONObject myObject = new JSONObject(responseContent.toString());
 			String bpmn = myObject.getString("bpmn20Xml");
 			InputStream stream = new ByteArrayInputStream(bpmn.getBytes(StandardCharsets.UTF_8));
@@ -59,7 +59,12 @@ public class App {
 
 			FlowNode startNode = modelInstance.getModelElementById(args[0]);
 			FlowNode endNode = modelInstance.getModelElementById(args[1]);
-			FlowNode exclusiveNode = modelInstance.getModelElementById("approveInvoice");
+
+			FlowNode firstNode = modelInstance.getModelElementById("StartEvent_1");
+			FlowNode secondNode = modelInstance.getModelElementById("assignApprover");
+			FlowNode loopNode = modelInstance.getModelElementById("approveInvoice");
+			FlowNode exclusiveNode = modelInstance.getModelElementById("reviewSuccessful_gw");
+
 			FlowNode node = endNode;
 
 			ArrayList<FlowNode> nodes = new ArrayList<FlowNode>();
@@ -67,24 +72,31 @@ public class App {
 
 			nodes.add(node);
 
-			while (!(node.getIncoming().isEmpty()) && node != startNode) {
+			while (!(node.getIncoming().isEmpty()) && node != startNode && !(nodes.contains(startNode))) {
+
 				for (SequenceFlow sequenceFlow : node.getIncoming()) {
-					nodes.add(sequenceFlow.getSource());
-					node = sequenceFlow.getSource();
-				}
-			}
 
-			if (nodes.contains(exclusiveNode)) {
-				for (SequenceFlow sf : exclusiveNode.getIncoming()) {
-					FlowNode fn = sf.getSource();
-					for (SequenceFlow sff : fn.getIncoming()) {
+					if (node.getIncoming().size() == 1) {
+						nodes.add(sequenceFlow.getSource());
+						node = sequenceFlow.getSource();
+					}
+					if (node.getIncoming().size() == 2) {
 
-						if (!nodes.contains(sff.getSource())) {
-							nodes.remove(fn);
+						if (startNode == firstNode || startNode == secondNode) {
+							nodes.add(secondNode);
+							node = secondNode;
+						} else {
+							if (startNode == loopNode || endNode == loopNode) {
+								node = exclusiveNode;
+							} else {
+								nodes.add(exclusiveNode);
+								node = exclusiveNode;
+							}
 						}
 					}
 				}
 			}
+
 			Collections.reverse(nodes);
 			for (FlowNode flowNode : nodes) {
 				list.add(flowNode.getId());
